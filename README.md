@@ -1,31 +1,53 @@
-# Express.js on Vercel
+# Fuse Payments API (x402)
 
-Basic Express.js + Vercel example that serves html content, JSON data and simulates an api route.
+Production API for Fuse blockchain business & consumer payments using the x402 protocol.
 
-## How to Use
+## Live Deployment
 
-You can choose from one of the following two methods to use this repository:
+- **URL**: https://fuse-payments-api.vercel.app
+- **Network**: Base mainnet
+- **Payment Token**: USDC
 
-### One-Click Deploy
+## Overview
 
-Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_medium=readme&utm_campaign=vercel-examples):
+This API provides x402 payment endpoints for:
+- Blockchain analytics and insights
+- Wallet management services  
+- Business token information
+- Consumer payment processing
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/git/external?repository-url=https://github.com/vercel/examples/tree/main/solutions/express&project-name=express&repository-name=express)
+## Dependencies
 
-### Clone and Deploy
+- `@x402/express@^2.10.0` - x402 Express middleware
+- `@x402/core@^2.10.0` - Core x402 functionality
+- `@x402/evm@^2.10.0` - EVM blockchain support
+- `@coinbase/x402@^2.1.0` - Coinbase x402 integration
+- `express@^5.2.1` - Web framework
+
+## Quick Start
 
 ```bash
-git clone https://github.com/vercel/examples/tree/main/solutions/express
+npm install
+npm start
 ```
 
-Install the Vercel CLI:
+## Deployment
+
+Deployed on Vercel under the fuse-labs scope:
+- Automatic deployments from main branch
+- Environment: Production
+- Region: Auto
+
+## x402 Protocol
+
+This service implements the x402 payment protocol, enabling micropayments for API access. Each endpoint requires USDC payment on Base network before returning data.
+
+## Usage
+
+Make requests with x402-compatible clients that handle automatic USDC payments:
 
 ```bash
-npm i -g vercel
+curl -H "x402-required: true" https://fuse-payments-api.vercel.app/api/endpoint
 ```
 
-Then run the app at the root of the repository:
-
-```bash
-vercel dev
-```
+The service will return payment requirements for x402 clients to fulfill before providing the requested data.
