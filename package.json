@@ -1,16 +1,19 @@
 {
-  "name": "express",
+  "name": "fuse-payments-api",
   "version": "1.0.0",
-  "description": "",
-  "type": "module",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@types/express": "^5.0.0",
-    "express": "^4.18.2"
+  "description": "Fuse Blockchain Business & Consumer Payments API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "build": "npm install"
   },
-  "devDependencies": {
-    "@types/node": "^22.0.0"
+  "dependencies": {
+    "@coinbase/x402": "^2.1.0",
+    "@x402/core": "^2.10.0",
+    "@x402/evm": "^2.10.0",
+    "@x402/express": "^2.10.0",
+    "@x402/extensions": "^2.10.0",
+    "express": "^5.2.1"
   }
 }
