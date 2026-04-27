@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "CDP_API_KEY_ID": "e1ed505c-02a5-4c6d-9961-1561afb2017d",
+    "CDP_API_KEY_SECRET": "uaFvISSA9Ew5/Rlt9ILOZj+VwqZzU5+vNyIZE7YwTiojcB6wIqgMLBNjIETcEfmeN9QkFxdgIb51O2UXhmke/A==",
+    "PAY_TO_WALLET": "0x198Ac74EFAeECE818Fb06C89bfded7C33d97C6F9"
+  }
+}
