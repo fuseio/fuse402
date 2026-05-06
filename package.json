@@ -15,5 +15,13 @@
     "@x402/express": "^2.10.0",
     "@x402/extensions": "^2.10.0",
     "express": "^5.2.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "jose": "5.10.0"
+    }
+  },
+  "overrides": {
+    "jose": "5.10.0"
   }
 }
