@@ -11,11 +11,23 @@ app.use(express.json());
 // Environment variables for production
 const PAY_TO = process.env.PAY_TO_WALLET || "0x198Ac74EFAeECE818Fb06C89bfded7C33d97C6F9";
 
-// Create CDP facilitator with proper authentication
-const facilitatorConfig = createFacilitatorConfig(
-  process.env.CDP_API_KEY_ID || "e1ed505c-02a5-4c6d-9961-1561afb2017d",
-  process.env.CDP_API_KEY_SECRET || "uaFvISSA9Ew5/Rlt9ILOZj+VwqZzU5+vNyIZE7YwTiojcB6wIqgMLBNjIETcEfmeN9QkFxdgIb51O2UXhmke/A=="
-);
+// Coinbase CDP credentials must come from the environment.
+// Hardcoded fallbacks bake secrets into git history and let the deployment
+// silently keep running with rotated/invalid keys. When that happens,
+// HTTPFacilitatorClient fails to load supported payment kinds at first
+// request and every protected route returns a generic 500 from the
+// catch-all error handler — which is exactly the failure mode we just hit.
+const { CDP_API_KEY_ID, CDP_API_KEY_SECRET } = process.env;
+if (!CDP_API_KEY_ID || !CDP_API_KEY_SECRET) {
+  console.error(
+    "[fatal] CDP_API_KEY_ID and CDP_API_KEY_SECRET must be set. " +
+      "Generate keys at https://portal.cdp.coinbase.com and configure them " +
+      "as environment variables on your deployment."
+  );
+  process.exit(1);
+}
+
+const facilitatorConfig = createFacilitatorConfig(CDP_API_KEY_ID, CDP_API_KEY_SECRET);
 const facilitator = new HTTPFacilitatorClient(facilitatorConfig);
 const server = new x402ResourceServer(facilitator);
 server.register("eip155:8453", new UptoEvmScheme()); // Base mainnet
@@ -277,15 +289,29 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Fuse Blockchain Business & Consumer Payments API running on port ${PORT}`);
-  console.log(`💰 Accepting USDC payments on Base network to: ${PAY_TO}`);
-  console.log(`🎯 Service endpoints:`);
-  console.log(`   GET /health (free)`);
-  console.log(`   GET /api/fuse/stats ($0.01)`);
-  console.log(`   GET /api/fuse/wallet/:address ($0.05)`);
-  console.log(`   GET /api/fuse/defi/opportunities ($0.10)`);
-  console.log(`   POST /api/fuse/loyalty/create ($5.00)`);
-  console.log(`   POST /api/fuse/loyalty/mint ($0.50)`);
-  console.log(`   GET /api/fuse/loyalty/balance/:token/:address ($0.02)`);
-});
+
+(async () => {
+  try {
+    await server.initialize();
+    console.log("✅ x402 facilitator initialized — supported kinds loaded");
+  } catch (err) {
+    console.error("[fatal] Failed to initialize x402 facilitator:", err);
+    console.error(
+      "Check that CDP credentials are valid and that your runtime can reach the Coinbase CDP facilitator endpoint."
+    );
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Fuse Blockchain Business & Consumer Payments API running on port ${PORT}`);
+    console.log(`💰 Accepting USDC payments on Base network to: ${PAY_TO}`);
+    console.log(`🎯 Service endpoints:`);
+    console.log(`   GET /health (free)`);
+    console.log(`   GET /api/fuse/stats ($0.01)`);
+    console.log(`   GET /api/fuse/wallet/:address ($0.05)`);
+    console.log(`   GET /api/fuse/defi/opportunities ($0.10)`);
+    console.log(`   POST /api/fuse/loyalty/create ($5.00)`);
+    console.log(`   POST /api/fuse/loyalty/mint ($0.50)`);
+    console.log(`   GET /api/fuse/loyalty/balance/:token/:address ($0.02)`);
+  });
+})();
