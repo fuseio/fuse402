@@ -1,7 +1,7 @@
 const express = require("express");
 const { paymentMiddleware } = require("@x402/express");
 const { x402ResourceServer, HTTPFacilitatorClient } = require("@x402/core/server");
-const { UptoEvmScheme } = require("@x402/evm/upto/server");
+const { ExactEvmScheme } = require("@x402/evm/exact/server");
 const { declareDiscoveryExtension } = require("@x402/extensions/bazaar");
 const { createFacilitatorConfig } = require("@coinbase/x402");
 
@@ -30,7 +30,11 @@ if (!CDP_API_KEY_ID || !CDP_API_KEY_SECRET) {
 const facilitatorConfig = createFacilitatorConfig(CDP_API_KEY_ID, CDP_API_KEY_SECRET);
 const facilitator = new HTTPFacilitatorClient(facilitatorConfig);
 const server = new x402ResourceServer(facilitator);
-server.register("eip155:8453", new UptoEvmScheme()); // Base mainnet
+// `exact` settles for the signed amount (no variable usage-based billing
+// here — every route below has a fixed price). On Base mainnet USDC the
+// scheme defaults to EIP-3009 `transferWithAuthorization`, which is what
+// most x402 clients (incl. the Solid agent) sign by default.
+server.register("eip155:8453", new ExactEvmScheme()); // Base mainnet
 
 // Root endpoint
 app.get("/", (req, res) => {
@@ -70,7 +74,7 @@ app.use(
     {
       "GET /api/fuse/stats": {
         accepts: {
-          scheme: "upto",
+          scheme: "exact",
           price: "$0.01",
           network: "eip155:8453",
           payTo: PAY_TO,
@@ -95,7 +99,7 @@ app.use(
       },
       "GET /api/fuse/wallet/*": {
         accepts: {
-          scheme: "upto",
+          scheme: "exact",
           price: "$0.05",
           network: "eip155:8453",
           payTo: PAY_TO,
@@ -105,7 +109,7 @@ app.use(
       },
       "GET /api/fuse/defi/opportunities": {
         accepts: {
-          scheme: "upto",
+          scheme: "exact",
           price: "$0.10",
           network: "eip155:8453",
           payTo: PAY_TO,
@@ -115,7 +119,7 @@ app.use(
       },
       "POST /api/fuse/loyalty/create": {
         accepts: {
-          scheme: "upto",
+          scheme: "exact",
           price: "$5.00",
           network: "eip155:8453",
           payTo: PAY_TO,
@@ -125,7 +129,7 @@ app.use(
       },
       "POST /api/fuse/loyalty/mint": {
         accepts: {
-          scheme: "upto",
+          scheme: "exact",
           price: "$0.50",
           network: "eip155:8453",
           payTo: PAY_TO,
@@ -135,7 +139,7 @@ app.use(
       },
       "GET /api/fuse/loyalty/balance/*": {
         accepts: {
-          scheme: "upto",
+          scheme: "exact",
           price: "$0.02",
           network: "eip155:8453",
           payTo: PAY_TO,
