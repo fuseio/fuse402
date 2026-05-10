@@ -74,6 +74,27 @@ globalThis.fetch = async (url, init) => {
 };
 // === END TEMPORARY CDP DEBUG LOGGER ===
 
+// Workaround for an upstream bug in @x402/core@2.11.0's HTTPFacilitatorClient
+// where verify/settle bodies are constructed with only
+// {x402Version, paymentPayload, paymentRequirements} — declaredExtensions is
+// dropped on its way to the wire. Without this, CDP receives no bazaar
+// metadata at verify/settle time, EXTENSION-RESPONSES is never returned,
+// and the resource never gets indexed in CDP Bazaar.
+//
+// applyExtensionsForwardPatch() patches x402ResourceServer.prototype to
+// thread declaredExtensions through AsyncLocalStorage, and wraps
+// globalThis.fetch to read the ALS context and inject the extensions
+// field into POST bodies for /verify and /settle. Order matters: this
+// must be applied AFTER the debug logger above so that the ext-forward
+// fetch wrapper is OUTERMOST. The debug logger then logs the
+// post-mutation body, which lets us verify on Vercel that the patch is
+// doing its job.
+//
+// TODO(remove): drop together with the debug logger above once
+// x402-foundation/x402 lands the upstream fix and we bump @x402/core.
+const { applyExtensionsForwardPatch } = require("./lib/x402-extensions-forward-patch");
+applyExtensionsForwardPatch();
+
 const app = express();
 app.use(express.json());
 
