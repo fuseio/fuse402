@@ -17,6 +17,37 @@ app.use(express.json());
 // after a successful settlement.
 app.set("trust proxy", true);
 
+// Workaround for an upstream bug in @x402/core's route matcher that breaks
+// CDP Bazaar indexing for any service registering its routes as "GET ...".
+//
+// Background: when CDP's Bazaar crawler probes a candidate resource, it
+// fans requests across multiple HTTP methods (GET, HEAD, POST, PUT,
+// DELETE, PATCH, OPTIONS — confirmed in our Vercel access logs). Per the
+// CDP discovery docs, every probed method on the resource path must
+// return 402; any other status code disqualifies the resource from
+// indexing.
+//
+// In x402HTTPResourceServer.getRouteConfig(), the route matcher does
+// strict method equality (route.verb === upperMethod), with no aliasing
+// for HEAD ↔ GET. So a HEAD request to a "GET /api/fuse/stats" route
+// finds no match, requiresPayment() returns false, the payment
+// middleware calls next(), and Express routes the HEAD to the GET
+// handler with body stripped — returning 200 OK instead of 402. That
+// 200 is what's been disqualifying this service from Bazaar indexing.
+//
+// Per HTTP RFC 7231 §4.3.2, HEAD is defined to behave identically to
+// GET except without a response body. Rewriting req.method here lets
+// the matcher see HEAD as GET for the purposes of route lookup. The
+// 402 challenge response has an empty body anyway, so HEAD returning
+// 402 with the payment-required header is fully spec-compliant.
+//
+// TODO(remove): drop this middleware once x402-foundation/x402 lands
+// the upstream fix in getRouteConfig and we bump @x402/core.
+app.use((req, _res, next) => {
+  if (req.method === "HEAD") req.method = "GET";
+  next();
+});
+
 // Environment variables for production
 const PAY_TO = process.env.PAY_TO_WALLET || "0x198Ac74EFAeECE818Fb06C89bfded7C33d97C6F9";
 
