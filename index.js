@@ -5,6 +5,75 @@ const { ExactEvmScheme } = require("@x402/evm/exact/server");
 const { declareDiscoveryExtension } = require("@x402/extensions/bazaar");
 const { createFacilitatorConfig } = require("@coinbase/x402");
 
+// === BEGIN TEMPORARY CDP DEBUG LOGGER ===
+//
+// Wraps globalThis.fetch to log every request to/from
+// api.cdp.coinbase.com. The point is to capture the EXTENSION-RESPONSES
+// header on /verify and /settle responses, which per Coinbase's docs
+// reports whether bazaar discovery metadata was accepted ("processing")
+// or rejected (with a reason). HTTPFacilitatorClient calls bare fetch()
+// internally, so patching the global resolves at call time and captures
+// every CDP round-trip without touching the SDK.
+//
+// Logged per CDP request:
+//   → method + URL
+//   → request body (truncated)
+//   ← status + URL
+//   ← response headers we care about (EXTENSION-RESPONSES,
+//     correlation-id, x-correlation-id)
+//   ← response body (truncated)
+//
+// Body cloning + 2KB truncation keeps log volume manageable; nothing
+// secret should appear here (CDP API key only goes in the Authorization
+// header, which we deliberately do NOT log).
+//
+// TODO(remove): drop this entire block once the bazaar indexing
+// investigation is complete.
+const _originalFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+  const urlStr = typeof url === "string" ? url : (url && url.url) || String(url);
+  const isCdp = urlStr.includes("api.cdp.coinbase.com");
+
+  if (isCdp) {
+    try {
+      const method = (init && init.method) || "GET";
+      console.log("[cdp-debug] →", method, urlStr);
+      if (init && init.body) {
+        const bodyStr =
+          typeof init.body === "string" ? init.body : JSON.stringify(init.body);
+        console.log("[cdp-debug] req body:", bodyStr.slice(0, 2000));
+      }
+    } catch (_) {
+      // never let logging break the request
+    }
+  }
+
+  const res = await _originalFetch(url, init);
+
+  if (isCdp) {
+    try {
+      console.log("[cdp-debug] ←", res.status, urlStr);
+      const headersOfInterest = [
+        "extension-responses",
+        "correlation-id",
+        "x-correlation-id",
+      ];
+      for (const name of headersOfInterest) {
+        const value = res.headers.get(name);
+        if (value) console.log(`[cdp-debug] resp ${name}:`, value);
+      }
+      const clone = res.clone();
+      const text = await clone.text();
+      console.log("[cdp-debug] resp body:", text.slice(0, 2000));
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  return res;
+};
+// === END TEMPORARY CDP DEBUG LOGGER ===
+
 const app = express();
 app.use(express.json());
 
