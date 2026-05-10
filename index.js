@@ -8,6 +8,15 @@ const { createFacilitatorConfig } = require("@coinbase/x402");
 const app = express();
 app.use(express.json());
 
+// Honor x-forwarded-proto from Vercel's TLS-terminating proxy so that the
+// payment middleware advertises the resource URL as https://. Without this,
+// req.protocol returns "http" and the 402 challenge points the CDP Bazaar
+// crawler at http://fuse402.vercel.app/..., which Vercel 308-redirects to
+// https. The crawler treats anything other than 402 as "not x402-enabled"
+// and skips indexing — so the resource never appears in Bazaar search even
+// after a successful settlement.
+app.set("trust proxy", true);
+
 // Environment variables for production
 const PAY_TO = process.env.PAY_TO_WALLET || "0x198Ac74EFAeECE818Fb06C89bfded7C33d97C6F9";
 
@@ -97,7 +106,7 @@ app.use(
           })
         }
       },
-      "GET /api/fuse/wallet/*": {
+      "GET /api/fuse/wallet/:address": {
         accepts: {
           scheme: "exact",
           price: "$0.05",
@@ -105,7 +114,31 @@ app.use(
           payTo: PAY_TO,
         },
         description: "Complete Fuse wallet analysis for business payments - balances, transaction history, payment flows",
-        mimeType: "application/json"
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            pathParamsSchema: {
+              properties: {
+                address: {
+                  type: "string",
+                  description: "EVM wallet address (0x-prefixed, 42 chars)",
+                  pattern: "^0x[a-fA-F0-9]{40}$"
+                }
+              },
+              required: ["address"]
+            },
+            output: {
+              example: {
+                address: "0x198Ac74EFAeECE818Fb06C89bfded7C33d97C6F9",
+                balance: { fuse: "123.4567", usd: "0.38" },
+                transactionCount: 42,
+                lastActivity: "2026-05-07T00:00:00.000Z",
+                defiPositions: [],
+                paymentActivity: { last30Days: 12, averageAmount: "25.50" }
+              }
+            }
+          })
+        }
       },
       "GET /api/fuse/defi/opportunities": {
         accepts: {
@@ -115,7 +148,34 @@ app.use(
           payTo: PAY_TO,
         },
         description: "Current business savings and payment yield opportunities on Fuse network",
-        mimeType: "application/json"
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            output: {
+              example: {
+                savingsAccounts: [
+                  {
+                    protocol: "Voltage Finance",
+                    apy: "8.5%",
+                    asset: "USDC",
+                    minimumDeposit: 10,
+                    description: "Stable yield farming for business treasury"
+                  }
+                ],
+                businessLoans: [
+                  {
+                    protocol: "Fuse Business Credit",
+                    rate: "4.5%",
+                    maxAmount: 50000,
+                    collateral: "USDC/FUSE LP",
+                    description: "Working capital for Fuse businesses"
+                  }
+                ],
+                lastUpdated: "2026-05-07T00:00:00.000Z"
+              }
+            }
+          })
+        }
       },
       "POST /api/fuse/loyalty/create": {
         accepts: {
@@ -125,7 +185,41 @@ app.use(
           payTo: PAY_TO,
         },
         description: "Launch a business payment token or consumer loyalty token on Fuse - includes smart contract deployment",
-        mimeType: "application/json"
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            bodyType: "json",
+            input: {
+              tokenName: "AcmeRewards",
+              tokenSymbol: "ACME",
+              businessName: "Acme Inc.",
+              initialSupply: 1000000
+            },
+            inputSchema: {
+              properties: {
+                tokenName: { type: "string", description: "Display name of the token" },
+                tokenSymbol: { type: "string", description: "Ticker symbol (3-6 chars typical)", maxLength: 12 },
+                businessName: { type: "string", description: "Issuing business name" },
+                initialSupply: { type: "integer", description: "Initial mint amount in whole tokens", minimum: 1 }
+              },
+              required: ["tokenName", "tokenSymbol"]
+            },
+            output: {
+              example: {
+                success: true,
+                tokenAddress: "0xabc...",
+                tokenName: "AcmeRewards",
+                tokenSymbol: "ACME",
+                totalSupply: "1000000000000000000000000",
+                deployerAddress: "0x198A...",
+                transactionHash: "0xdef...",
+                contractFeatures: ["mintable", "burnable", "pausable", "business_payments", "loyalty_rewards"],
+                gasUsed: 1020933,
+                deploymentCost: "0.0157"
+              }
+            }
+          })
+        }
       },
       "POST /api/fuse/loyalty/mint": {
         accepts: {
@@ -135,9 +229,40 @@ app.use(
           payTo: PAY_TO,
         },
         description: "Mint loyalty tokens for customer rewards or business payments",
-        mimeType: "application/json"
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            bodyType: "json",
+            input: {
+              tokenAddress: "0xabc1234567890abcdef1234567890abcdef12345",
+              recipient: "0xdef1234567890abcdef1234567890abcdef12345",
+              amount: 100,
+              reason: "customer_referral_bonus"
+            },
+            inputSchema: {
+              properties: {
+                tokenAddress: { type: "string", description: "Loyalty token contract address", pattern: "^0x[a-fA-F0-9]{40}$" },
+                recipient: { type: "string", description: "Recipient wallet address", pattern: "^0x[a-fA-F0-9]{40}$" },
+                amount: { type: "number", description: "Amount of tokens to mint (whole units)", minimum: 0 },
+                reason: { type: "string", description: "Free-text reason for the mint (e.g. business_payment, referral_bonus)" }
+              },
+              required: ["tokenAddress", "recipient", "amount"]
+            },
+            output: {
+              example: {
+                success: true,
+                transactionHash: "0xabc...",
+                tokenAddress: "0xabc...",
+                recipient: "0xdef...",
+                amount: 100,
+                reason: "customer_referral_bonus",
+                gasUsed: 65000
+              }
+            }
+          })
+        }
       },
-      "GET /api/fuse/loyalty/balance/*": {
+      "GET /api/fuse/loyalty/balance/:token/:address": {
         accepts: {
           scheme: "exact",
           price: "$0.02",
@@ -145,7 +270,26 @@ app.use(
           payTo: PAY_TO,
         },
         description: "Check loyalty/payment token balances",
-        mimeType: "application/json"
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            pathParamsSchema: {
+              properties: {
+                token: { type: "string", description: "Loyalty token contract address", pattern: "^0x[a-fA-F0-9]{40}$" },
+                address: { type: "string", description: "Holder wallet address", pattern: "^0x[a-fA-F0-9]{40}$" }
+              },
+              required: ["token", "address"]
+            },
+            output: {
+              example: {
+                tokenAddress: "0xabc...",
+                holderAddress: "0xdef...",
+                balance: "123.45",
+                lastUpdate: "2026-05-07T00:00:00.000Z"
+              }
+            }
+          })
+        }
       }
     },
     server,
