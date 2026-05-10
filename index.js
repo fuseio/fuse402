@@ -77,51 +77,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// TEMPORARY DEBUG ENDPOINT — remove before this branch is considered done.
-//
-// Reports whether the CDP and deployment env vars are wired up on the
-// running instance, without leaking the actual secret values. Returns
-// (and logs to Vercel runtime logs) only metadata: presence, length,
-// and short prefix/suffix tokens — enough to confirm the right key was
-// uploaded without revealing the key itself if the URL is shared.
-//
-// TODO(remove): delete this entire `/_debug/cdp-env` block once the
-// CDP key configuration has been verified.
-function _debugRedact(value) {
-  if (!value) return { present: false };
-  return {
-    present: true,
-    length: value.length,
-    prefix: value.slice(0, 4),
-    suffix: value.slice(-4),
-  };
-}
-
-app.get("/_debug/cdp-env", (req, res) => {
-  const summary = {
-    note: "TEMPORARY DEBUG ENDPOINT — values are redacted. Remove before merging.",
-    cdp: {
-      CDP_API_KEY_ID: _debugRedact(process.env.CDP_API_KEY_ID),
-      CDP_API_KEY_SECRET: _debugRedact(process.env.CDP_API_KEY_SECRET),
-    },
-    fuse: {
-      // payTo is a public on-chain address, safe to show in full
-      PAY_TO_WALLET: process.env.PAY_TO_WALLET || null,
-    },
-    runtime: {
-      NODE_ENV: process.env.NODE_ENV || null,
-      VERCEL_ENV: process.env.VERCEL_ENV || null,
-      VERCEL_REGION: process.env.VERCEL_REGION || null,
-      VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA || null,
-      VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF || null,
-    },
-    checkedAt: new Date().toISOString(),
-  };
-
-  console.log("[debug] cdp-env check:", JSON.stringify(summary));
-  res.json(summary);
-});
-
 // x402 payment middleware — protects routes below
 app.use(
   paymentMiddleware(
