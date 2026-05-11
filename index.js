@@ -198,8 +198,99 @@ const server = new x402ResourceServer(facilitator);
 server.register("eip155:8453", new ExactEvmScheme()); // Base mainnet
 
 // Root endpoint
+// Brand constants for the landing page and OpenGraph/Twitter cards. These
+// are the strings x402scan reads when crawling the origin's HTML at /:
+//   <title>                          → origin.title
+//   <meta name="description">        → origin.description
+//   <meta property="og:image">       → ogImages[]
+// Confirmed by inspecting a populated origin (x402-secure-api.t54.ai) where
+// these tags map exactly to x402scan's stored fields.
+const LANDING_TITLE =
+  "Fuse402 — Fuse Network Business Payments & Loyalty API";
+const LANDING_DESCRIPTION =
+  "Pay-per-request access to Fuse Network blockchain data and business " +
+  "payment infrastructure. Settles in USDC on Base via x402.";
+
+// Minimal HTML escape for any future dynamic values inserted into the
+// template. The current constants don't need it, but keeping the helper
+// here means we don't regress if someone later substitutes user-supplied
+// or env-supplied data into the template.
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderLandingHtml() {
+  const t = escapeHtml(LANDING_TITLE);
+  const d = escapeHtml(LANDING_DESCRIPTION);
+  const img = escapeHtml(SFUSE_ICON_URL);
+  const url = "https://fuse402.vercel.app";
+  const wallet = escapeHtml(PAY_TO);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${t}</title>
+<meta name="description" content="${d}">
+<meta property="og:title" content="${t}">
+<meta property="og:description" content="${d}">
+<meta property="og:image" content="${img}">
+<meta property="og:url" content="${url}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${t}">
+<meta name="twitter:description" content="${d}">
+<meta name="twitter:image" content="${img}">
+<link rel="icon" href="/favicon.ico">
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; color: #222; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.1rem; margin-top: 1.5rem; }
+  .desc { color: #555; margin-top: 0; }
+  ul { padding-left: 1.5rem; }
+  li { margin: 0.4rem 0; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.9em; }
+  .footer { margin-top: 2rem; color: #777; font-size: 0.85em; border-top: 1px solid #eee; padding-top: 1rem; }
+  a { color: #0066cc; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<h1>${t}</h1>
+<p class="desc">${d}</p>
+<h2>Paid endpoints</h2>
+<ul>
+<li><code>GET /api/fuse/stats</code> — Real-time Fuse network statistics ($0.01)</li>
+<li><code>GET /api/fuse/wallet/:address</code> — Wallet balance, history, DeFi positions ($0.05)</li>
+<li><code>GET /api/fuse/defi/opportunities</code> — Business DeFi yield opportunities ($0.10)</li>
+<li><code>POST /api/fuse/loyalty/create</code> — Deploy a loyalty/payment token ($5.00)</li>
+<li><code>POST /api/fuse/loyalty/mint</code> — Mint loyalty tokens to a recipient ($0.50)</li>
+<li><code>GET /api/fuse/loyalty/balance/:token/:address</code> — Check loyalty token balance ($0.02)</li>
+</ul>
+<h2>Discovery</h2>
+<ul>
+<li><a href="/openapi.json">OpenAPI 3.1.0 specification</a></li>
+<li><a href="/.well-known/x402">x402 well-known v1</a></li>
+</ul>
+<p class="footer">
+Settles in USDC on Base mainnet (eip155:8453) via the x402 protocol. No accounts, no API keys.<br>
+Merchant: <code>${wallet}</code>
+</p>
+</body>
+</html>`;
+}
+
 app.get("/", (req, res) => {
-  res.json({
+  // Existing JSON shape — preserved unchanged for clients that explicitly
+  // request application/json. Crawlers and browsers (which send Accept:
+  // text/html, */*) fall through to the HTML branch so x402scan can read
+  // <title> and <meta name="description">.
+  const apiInfo = {
     service: "Fuse Blockchain Business & Consumer Payments API",
     status: "live",
     version: "1.0.0",
@@ -210,12 +301,21 @@ app.get("/", (req, res) => {
       opportunities: "/api/fuse/defi/opportunities ($0.10)",
       createToken: "POST /api/fuse/loyalty/create ($5.00)",
       mintRewards: "POST /api/fuse/loyalty/mint ($0.50)",
-      checkBalance: "/api/fuse/loyalty/balance/:token/:address ($0.02)"
+      checkBalance: "/api/fuse/loyalty/balance/:token/:address ($0.02)",
     },
-    description: "First Fuse-focused x402 payment service for business payments and consumer loyalty tokens",
+    description:
+      "First Fuse-focused x402 payment service for business payments and " +
+      "consumer loyalty tokens",
     network: "Base (eip155:8453)",
     paymentToken: "USDC",
-    wallet: PAY_TO
+    wallet: PAY_TO,
+  };
+  res.format({
+    "application/json": () => res.json(apiInfo),
+    "text/html": () => res.type("html").send(renderLandingHtml()),
+    // No Accept header / */* / anything else → HTML. This matches default
+    // crawler behavior (curl with no -H, browsers, og-image scrapers).
+    default: () => res.type("html").send(renderLandingHtml()),
   });
 });
 
