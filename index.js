@@ -124,7 +124,7 @@ applyExtensionsForwardPatch();
 // the service without out-of-band registration. OpenAPI 3.1.0 is canonical;
 // well-known v1 is shipped alongside as a fallback. Both are free/public.
 // See lib/discovery.js for the spec definitions.
-const { OPENAPI_SPEC, WELLKNOWN_X402 } = require("./lib/discovery");
+const { OPENAPI_SPEC, WELLKNOWN_X402, SFUSE_ICON_URL } = require("./lib/discovery");
 
 const app = express();
 app.use(express.json());
@@ -238,6 +238,14 @@ app.get("/openapi.json", (req, res) => {
 });
 app.get("/.well-known/x402", (req, res) => {
   res.json(WELLKNOWN_X402);
+});
+
+// Favicon (free). Crawlers and the x402scan registry probe /favicon.ico to
+// populate the origin's icon. Redirect both .ico and .png to the canonical
+// sFuse asset on Webflow CDN. A 302 keeps the response small; consumers
+// that need bytes follow the redirect transparently.
+app.get(["/favicon.ico", "/favicon.png"], (req, res) => {
+  res.redirect(302, SFUSE_ICON_URL);
 });
 
 // x402 payment middleware — protects routes below
