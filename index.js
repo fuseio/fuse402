@@ -53,14 +53,39 @@ globalThis.fetch = async (url, init) => {
   if (isCdp) {
     try {
       console.log("[cdp-debug] ←", res.status, urlStr);
-      const headersOfInterest = [
-        "extension-responses",
-        "correlation-id",
-        "x-correlation-id",
-      ];
-      for (const name of headersOfInterest) {
-        const value = res.headers.get(name);
-        if (value) console.log(`[cdp-debug] resp ${name}:`, value);
+      // Dump ALL response headers as JSON so we have unambiguous,
+      // paste-able evidence of what CDP returned. This mirrors the Worker-
+      // level header dump Karl-Keller did on x402 issue #2112 — confirming
+      // header absence requires logging every header, not just the ones
+      // we expected.
+      const allHeaders = {};
+      res.headers.forEach((v, k) => {
+        allHeaders[k] = v;
+      });
+      console.log("[cdp-debug] resp headers:", JSON.stringify(allHeaders));
+
+      // Make EXTENSION-RESPONSES presence/absence loud and explicit. Also
+      // base64-decode it when present so the bazaar status is readable in
+      // logs without a second tool. Per the bazaar.mdx spec, the value is
+      // base64-encoded JSON like {"bazaar":{"status":"processing"}}.
+      const extResp = res.headers.get("extension-responses");
+      if (extResp) {
+        console.log("[cdp-debug] resp extension-responses (raw):", extResp);
+        try {
+          const decoded = Buffer.from(extResp, "base64").toString("utf8");
+          console.log("[cdp-debug] resp extension-responses (decoded):", decoded);
+        } catch (e) {
+          console.log("[cdp-debug] resp extension-responses (decode failed):", e.message);
+        }
+      } else {
+        console.log("[cdp-debug] resp extension-responses: (absent)");
+      }
+
+      // Also explicitly log correlation IDs (separate from the all-headers
+      // dump above to make them grep-able in Vercel's log UI).
+      const correlationId = res.headers.get("correlation-id") || res.headers.get("x-correlation-id");
+      if (correlationId) {
+        console.log("[cdp-debug] resp correlation-id:", correlationId);
       }
       const clone = res.clone();
       const text = await clone.text();
@@ -203,12 +228,14 @@ app.use(
   paymentMiddleware(
     {
       "GET /api/fuse/stats": {
-        accepts: {
-          scheme: "exact",
-          price: "$0.01",
-          network: "eip155:8453",
-          payTo: PAY_TO,
-        },
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.01",
+            network: "eip155:8453",
+            payTo: PAY_TO,
+          },
+        ],
         description: "Real-time Fuse payment network statistics - transaction volumes, network health, payment costs",
         mimeType: "application/json",
         extensions: {
@@ -228,12 +255,14 @@ app.use(
         }
       },
       "GET /api/fuse/wallet/:address": {
-        accepts: {
-          scheme: "exact",
-          price: "$0.05",
-          network: "eip155:8453",
-          payTo: PAY_TO,
-        },
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.05",
+            network: "eip155:8453",
+            payTo: PAY_TO,
+          },
+        ],
         description: "Complete Fuse wallet analysis for business payments - balances, transaction history, payment flows",
         mimeType: "application/json",
         extensions: {
@@ -262,12 +291,14 @@ app.use(
         }
       },
       "GET /api/fuse/defi/opportunities": {
-        accepts: {
-          scheme: "exact",
-          price: "$0.10",
-          network: "eip155:8453",
-          payTo: PAY_TO,
-        },
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.10",
+            network: "eip155:8453",
+            payTo: PAY_TO,
+          },
+        ],
         description: "Current business savings and payment yield opportunities on Fuse network",
         mimeType: "application/json",
         extensions: {
@@ -299,12 +330,14 @@ app.use(
         }
       },
       "POST /api/fuse/loyalty/create": {
-        accepts: {
-          scheme: "exact",
-          price: "$5.00",
-          network: "eip155:8453",
-          payTo: PAY_TO,
-        },
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$5.00",
+            network: "eip155:8453",
+            payTo: PAY_TO,
+          },
+        ],
         description: "Launch a business payment token or consumer loyalty token on Fuse - includes smart contract deployment",
         mimeType: "application/json",
         extensions: {
@@ -343,12 +376,14 @@ app.use(
         }
       },
       "POST /api/fuse/loyalty/mint": {
-        accepts: {
-          scheme: "exact",
-          price: "$0.50",
-          network: "eip155:8453",
-          payTo: PAY_TO,
-        },
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.50",
+            network: "eip155:8453",
+            payTo: PAY_TO,
+          },
+        ],
         description: "Mint loyalty tokens for customer rewards or business payments",
         mimeType: "application/json",
         extensions: {
@@ -384,12 +419,14 @@ app.use(
         }
       },
       "GET /api/fuse/loyalty/balance/:token/:address": {
-        accepts: {
-          scheme: "exact",
-          price: "$0.02",
-          network: "eip155:8453",
-          payTo: PAY_TO,
-        },
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.02",
+            network: "eip155:8453",
+            payTo: PAY_TO,
+          },
+        ],
         description: "Check loyalty/payment token balances",
         mimeType: "application/json",
         extensions: {
