@@ -120,6 +120,12 @@ globalThis.fetch = async (url, init) => {
 const { applyExtensionsForwardPatch } = require("./lib/x402-extensions-forward-patch");
 applyExtensionsForwardPatch();
 
+// Static discovery metadata for x402scan (and similar registries) to ingest
+// the service without out-of-band registration. OpenAPI 3.1.0 is canonical;
+// well-known v1 is shipped alongside as a fallback. Both are free/public.
+// See lib/discovery.js for the spec definitions.
+const { OPENAPI_SPEC, WELLKNOWN_X402 } = require("./lib/discovery");
+
 const app = express();
 app.use(express.json());
 
@@ -221,6 +227,17 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
+});
+
+// Discovery endpoints (free). Define BEFORE paymentMiddleware so they
+// short-circuit to our handlers and never get inspected for payment.
+//   /openapi.json       → OpenAPI 3.1.0 spec, canonical for x402scan
+//   /.well-known/x402   → well-known v1 fallback
+app.get("/openapi.json", (req, res) => {
+  res.json(OPENAPI_SPEC);
+});
+app.get("/.well-known/x402", (req, res) => {
+  res.json(WELLKNOWN_X402);
 });
 
 // x402 payment middleware — protects routes below
