@@ -1,3 +1,14 @@
 allowBuilds:
   '@coinbase/x402': false
   esbuild: false
+
+# Force jose 5.x across the dependency tree. @coinbase/cdp-sdk@1.48.2
+# declares "jose": "^6.2.0" and consumes it from its CJS build via
+# require("jose"), but jose@6.x is ESM-only — so on Node CJS the import
+# throws ERR_REQUIRE_ESM at boot. jose@5.10.0 exposes the same
+# importPKCS8/importJWK/SignJWT API that cdp-sdk uses and ships a CJS
+# build, so down-pinning makes the require() resolve cleanly. This
+# override MUST live in pnpm-workspace.yaml — pnpm 10+ no longer honors
+# `pnpm.overrides` declared in package.json.
+overrides:
+  jose: 5.10.0

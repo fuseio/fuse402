@@ -26,11 +26,6 @@
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   },
-  "pnpm": {
-    "overrides": {
-      "jose": "5.10.0"
-    }
-  },
   "overrides": {
     "jose": "5.10.0"
   }
