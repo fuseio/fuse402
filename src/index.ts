@@ -23,12 +23,19 @@ import {
   CDP_API_KEY_ID,
   CDP_API_KEY_SECRET,
   HOST_URL,
+  MPP_ENABLED,
   PAY_TO,
   PORT,
   SFUSE_ICON_URL,
 } from "./config.js";
 import { OPENAPI_SPEC, WELLKNOWN_X402 } from "./discovery.js";
 import { renderLandingHtml } from "./landing.js";
+import {
+  dualPay,
+  matchRoute,
+  type PaidRoute,
+  x402SkipIfMppPaid,
+} from "./middleware/dual-pay.js";
 import { defiOpportunitiesHandler } from "./routes/defi.js";
 import {
   loyaltyBalanceHandler,
@@ -37,6 +44,18 @@ import {
 } from "./routes/loyalty.js";
 import { statsHandler } from "./routes/stats.js";
 import { walletHandler } from "./routes/wallet.js";
+
+// Single source of truth for the route → price/description map shared by
+// the MPP preflight, the OpenAPI discovery doc, and x402's routesMap below.
+// Edit prices or paths here and verify the three sites stay aligned.
+const PAID_ROUTES: PaidRoute[] = [
+  { method: "GET", pattern: "/api/fuse/stats", usd: "0.01", description: "Real-time Fuse network statistics" },
+  { method: "GET", pattern: "/api/fuse/wallet/:address", usd: "0.05", description: "Fuse wallet analysis" },
+  { method: "GET", pattern: "/api/fuse/defi/opportunities", usd: "0.10", description: "Fuse DeFi yield opportunities" },
+  { method: "POST", pattern: "/api/fuse/loyalty/create", usd: "5.00", description: "Deploy LoyaltyToken ERC-20 on Fuse" },
+  { method: "POST", pattern: "/api/fuse/loyalty/mint", usd: "0.50", description: "Mint loyalty tokens" },
+  { method: "GET", pattern: "/api/fuse/loyalty/balance/:token/:address", usd: "0.02", description: "Read ERC-20 balance on Fuse" },
+];
 
 const app = express();
 app.use(express.json());
@@ -126,8 +145,23 @@ app.get(["/favicon.ico", "/favicon.png"], (_req: Request, res: Response) => {
   res.redirect(302, SFUSE_ICON_URL);
 });
 
+// MPP preflight — runs before x402. For each request that matches a paid
+// route, it either: (a) verifies an `Authorization: Payment …` credential
+// and marks req.__mppPaid so x402 skips, (b) lets x402 take over for
+// `X-PAYMENT` clients, or (c) pre-builds MPP `WWW-Authenticate: Payment`
+// challenges and hooks res.writeHead so x402's 402 response also carries
+// them. Toggle via MPP_ENABLED env var.
+if (MPP_ENABLED) {
+  app.use(async (req, res, next) => {
+    const route = matchRoute(req, PAID_ROUTES);
+    if (!route) return next();
+    return dualPay(route.usd, route.description)(req, res, next);
+  });
+}
+
 // x402 payment middleware — protects everything below.
 app.use(
+  x402SkipIfMppPaid(
   paymentMiddleware(
     {
       "GET /api/fuse/stats": {
@@ -344,6 +378,7 @@ app.use(
     },
     server,
   ),
+  ),
 );
 
 // Protected route handlers — real implementations live in src/routes.
@@ -377,5 +412,8 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   app.listen(PORT, () => {
     console.log(`🚀 Fuse Blockchain Business & Consumer Payments API on :${PORT}`);
     console.log(`💰 Accepting USDC payments on Base network to: ${PAY_TO}`);
+    if (MPP_ENABLED) {
+      console.log("💳 Accepting MPP: tempo / stripe / lightning");
+    }
   });
 })();

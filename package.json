@@ -11,12 +11,15 @@
     "test": "tsx src/patches/extensions-forward.test.ts"
   },
   "dependencies": {
+    "@buildonspark/lightning-mpp-sdk": "^0.1.4",
     "@coinbase/x402": "^2.1.0",
     "@x402/core": "^2.11.0",
     "@x402/evm": "^2.11.0",
     "@x402/express": "^2.11.0",
     "@x402/extensions": "^2.11.0",
     "express": "^5.2.1",
+    "mppx": "^0.6.20",
+    "stripe": "^22.1.1",
     "viem": "^2.48.11",
     "zod": "^4.4.3"
   },

@@ -1,6 +1,7 @@
 allowBuilds:
   '@coinbase/x402': false
   esbuild: false
+  protobufjs: set this to true or false
 
 # Force jose 5.x across the dependency tree. @coinbase/cdp-sdk@1.48.2
 # declares "jose": "^6.2.0" and consumes it from its CJS build via

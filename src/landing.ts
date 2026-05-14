@@ -73,14 +73,21 @@ export function renderLandingHtml(): string {
 <li><code>POST /api/fuse/loyalty/mint</code> — Mint loyalty tokens to a recipient ($0.50)</li>
 <li><code>GET /api/fuse/loyalty/balance/:token/:address</code> — Check ERC-20 token balance ($0.02)</li>
 </ul>
+<h2>Payment rails</h2>
+<ul>
+<li><strong>x402</strong> — USDC on Base mainnet (eip155:8453), Coinbase CDP facilitator</li>
+<li><strong>MPP &middot; Tempo</strong> — USDC stablecoin on the Tempo network</li>
+<li><strong>MPP &middot; Stripe</strong> — Visa, Mastercard, and digital wallets</li>
+<li><strong>MPP &middot; Lightning</strong> — Bitcoin over the Lightning Network</li>
+</ul>
 <h2>Discovery</h2>
 <ul>
-<li><a href="/openapi.json">OpenAPI 3.1.0 specification</a></li>
+<li><a href="/openapi.json">OpenAPI 3.1.0 specification</a> &mdash; includes <code>x-payment-info.offers</code> per operation</li>
 <li><a href="/.well-known/x402">x402 well-known v1</a></li>
 </ul>
 <p class="footer">
-Settles in USDC on Base mainnet (eip155:8453) via the x402 protocol. No accounts, no API keys.<br>
-Merchant: <code>${wallet}</code>
+No accounts, no API keys &mdash; agents pay per request.<br>
+x402 merchant: <code>${wallet}</code>
 </p>
 </body>
 </html>`;
