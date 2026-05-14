@@ -8,10 +8,12 @@
 //   2. `X-PAYMENT` header → fall through; existing x402 paymentMiddleware
 //      verifies and emits its own responses.
 //   3. No payment header → pre-generate one Challenge per MPP method and
-//      hook res.writeHead so x402's 402 also carries `WWW-Authenticate:
-//      Payment …` headers (one per method). MPP clients reading WWW-
-//      Authenticate get a real challenge; x402 clients reading X-PAYMENT-
-//      REQUIRED keep working unchanged.
+//      attach them via `res.setHeader("WWW-Authenticate", [...])` before
+//      handing off to x402. Node serializes WWW-Authenticate array values
+//      as one header line per entry, so x402's 402 carries both x402's
+//      X-PAYMENT-REQUIRED and one WWW-Authenticate per MPP method. MPP
+//      clients reading WWW-Authenticate get real challenges; x402 clients
+//      reading X-PAYMENT-REQUIRED keep working unchanged.
 
 import { Challenge } from "mppx";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
@@ -23,7 +25,6 @@ import { composeEntriesForUsd, getMpp } from "../mpp.js";
 // pollution; module-augment lookup is fragile under Express 5's type setup).
 type ReqWithState = Request & { __mppPaid?: boolean };
 type ResWithState = Response & {
-  __mppChallengeHeaders?: string[];
   __mppReceiptHeader?: string;
 };
 
@@ -74,39 +75,40 @@ function reqToWebRequest(req: Request): globalThis.Request {
   );
 }
 
-// Hook res.writeHead so that whenever the downstream emits a 402 we also
-// append a WWW-Authenticate: Payment header per MPP method. Idempotent —
-// safe to install once per request.
-function installWwwAuthInjector(res: ResWithState) {
-  const orig = res.writeHead.bind(res);
-  res.writeHead = function (this: ResWithState, status: number, ...rest: unknown[]) {
-    if (status === 402) {
-      for (const value of res.__mppChallengeHeaders ?? []) {
-        res.append("WWW-Authenticate", value);
-      }
-    }
-    // express's `res.writeHead` typing is the union of node's overloads;
-    // delegate to the captured original to satisfy both shapes.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (orig as any)(status, ...rest);
-  } as typeof res.writeHead;
-}
-
 // Build per-method challenges for the no-credential WWW-Authenticate
-// injection. Lightning is deliberately excluded here: Spark's `request()`
+// emission. Lightning is deliberately excluded here: Spark's `request()`
 // hook mints a fresh BOLT11 invoice on every challenge generation by
 // calling out to the Spark service, which would burn ~N invoices on every
 // crawler hit. Lightning still surfaces to clients via the OpenAPI
 // `x-payment-info.offers[]` and is verified at `Authorization: Payment`
 // time when the client actually pays.
+//
+// Uses Promise.allSettled so one method's failure doesn't take down the
+// whole batch — e.g. if Tempo's RPC is flaky on a particular invocation,
+// Stripe still emits. Rejected entries are logged so the cause surfaces
+// in Vercel logs.
 async function buildChallengeHeaders(usd: string, description: string): Promise<string[]> {
   const entries = composeEntriesForUsd(usd, description);
   const mpp = getMpp();
-  const [tempo, stripe] = await Promise.all([
+  const results = await Promise.allSettled([
     mpp.challenge.tempo.charge(entries.tempo),
     mpp.challenge.stripe.charge(entries.stripe),
   ]);
-  return [tempo, stripe].map(Challenge.serialize);
+  const labels = ["tempo", "stripe"];
+  const headers: string[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.status === "fulfilled") {
+      try {
+        headers.push(Challenge.serialize(r.value));
+      } catch (err) {
+        console.error(`[mpp] challenge serialize failed (${labels[i]}):`, err);
+      }
+    } else {
+      console.error(`[mpp] challenge mint failed (${labels[i]}):`, r.reason);
+    }
+  }
+  return headers;
 }
 
 // Run mpp.compose() against the request and either: verify (and let the
@@ -180,14 +182,24 @@ export function dualPay(usd: string, description: string): RequestHandler {
       return next();
     }
 
-    // No credential. Pre-build MPP challenges so x402's 402 can carry them
-    // as WWW-Authenticate headers. If challenge generation itself fails,
-    // log and continue — x402 still emits a valid (x402-only) 402.
+    // No credential. Pre-build MPP challenges and set them as
+    // WWW-Authenticate headers BEFORE handing off to x402. Express
+    // preserves previously-set headers when emitting its 402, so the
+    // single response carries both x402's X-PAYMENT-REQUIRED and MPP's
+    // WWW-Authenticate: Payment. Setting via setHeader(name, array)
+    // makes Node emit multiple WWW-Authenticate header lines (matches
+    // Node's special handling for that header, mirroring Set-Cookie).
+    //
+    // Setting unconditionally on the no-credential path is safe because
+    // x402's paymentMiddleware always emits 402 when X-PAYMENT is
+    // absent — there's no success path that would leak the header.
     try {
-      r.__mppChallengeHeaders = await buildChallengeHeaders(usd, description);
-      installWwwAuthInjector(r);
+      const headers = await buildChallengeHeaders(usd, description);
+      if (headers.length > 0) {
+        res.setHeader("WWW-Authenticate", headers);
+      }
     } catch (err) {
-      console.error("[mpp] challenge generation failed:", err);
+      console.error("[mpp] challenge build failed:", err);
     }
     next();
   };
