@@ -8,12 +8,22 @@
 //   2. `X-PAYMENT` header → fall through; existing x402 paymentMiddleware
 //      verifies and emits its own responses.
 //   3. No payment header → pre-generate one Challenge per MPP method and
-//      attach them via `res.setHeader("WWW-Authenticate", [...])` before
-//      handing off to x402. Node serializes WWW-Authenticate array values
-//      as one header line per entry, so x402's 402 carries both x402's
-//      X-PAYMENT-REQUIRED and one WWW-Authenticate per MPP method. MPP
-//      clients reading WWW-Authenticate get real challenges; x402 clients
-//      reading X-PAYMENT-REQUIRED keep working unchanged.
+//      comma-join them into a single `WWW-Authenticate` header value
+//      (RFC 9110 §11.6.1 list form) before handing off to x402. Single-
+//      value emission rather than array-of-values is required by
+//      Vercel's serverless response adapter, which only preserves
+//      multi-value emission for Set-Cookie and collapses every other
+//      array-shaped response header to the last entry. mppx's
+//      Challenge.fromResponseList splits the comma-joined value back
+//      into individual challenges by scanning for `Payment ` prefixes.
+//      x402's X-PAYMENT-REQUIRED header is unaffected (single value).
+//
+// Foot-gun: the comma-joining is safe only as long as no challenge value
+// contains the literal token `Payment ` (with trailing whitespace) inside
+// a quoted field — that would cause deserializeList's splitter to mis-
+// segment. The current descriptions are fixed strings; if any user input
+// ever flows into a charge `description`, escape it (or HMAC-sign the
+// header) before reaching this code.
 
 import { Challenge } from "mppx";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
@@ -196,7 +206,15 @@ export function dualPay(usd: string, description: string): RequestHandler {
     try {
       const headers = await buildChallengeHeaders(usd, description);
       if (headers.length > 0) {
-        res.setHeader("WWW-Authenticate", headers);
+        // Comma-join into a single header value per RFC 9110 §11.6.1.
+        // Vercel's serverless response adapter only preserves multi-value
+        // emission for Set-Cookie; passing an array here makes every other
+        // entry get dropped (last-value-wins) by the time it reaches the
+        // wire. A single comma-joined value survives the adapter intact,
+        // and mppx's Challenge.fromResponseList parses it correctly by
+        // splitting on each `Payment ` scheme prefix. See the block
+        // comment at the top of this file for full rationale.
+        res.setHeader("WWW-Authenticate", headers.join(", "));
       }
     } catch (err) {
       console.error("[mpp] challenge build failed:", err);
