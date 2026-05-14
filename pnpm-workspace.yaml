@@ -1,7 +1,11 @@
 allowBuilds:
   '@coinbase/x402': false
   esbuild: false
-  protobufjs: set this to true or false
+  # protobufjs comes in transitively via @buildonspark/lightning-mpp-sdk
+  # (gRPC). Its postinstall ensures `long` is available for 64-bit int
+  # support, which Spark uses for sat amounts. Without this, pnpm 10+
+  # fails Vercel builds with [ERR_PNPM_IGNORED_BUILDS].
+  protobufjs: true
 
 # Force jose 5.x across the dependency tree. @coinbase/cdp-sdk@1.48.2
 # declares "jose": "^6.2.0" and consumes it from its CJS build via
