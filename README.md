@@ -1,4 +1,4 @@
-# Fuse402 — Fuse Network Business Payments & Loyalty API
+# Fuse AI — Fuse Network Business Payments & Loyalty API
 
 Pay-per-request access to Fuse Network blockchain data and business payment
 infrastructure. The same endpoints accept payment over **two protocols**

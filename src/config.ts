@@ -136,7 +136,7 @@ export const SFUSE_ICON_URL =
 
 // Public landing-page copy used by the HTML renderer and OpenAPI info.
 export const LANDING_TITLE =
-  "Fuse402 — Fuse Network Business Payments & Loyalty API";
+  "Fuse AI — Fuse Network Business Payments & Loyalty API";
 export const LANDING_DESCRIPTION =
   "Pay-per-request access to Fuse Network blockchain data and business " +
   "payment infrastructure. Accepts USDC (Base via x402; Tempo via MPP), " +

@@ -96,7 +96,7 @@ export const OPENAPI_SPEC = {
     version: "1.0.0",
     description: LANDING_DESCRIPTION,
     "x-guidance":
-      "Fuse402 exposes Fuse Network blockchain intelligence and business " +
+      "Fuse AI exposes Fuse Network blockchain intelligence and business " +
       "payment tooling as pay-per-request HTTP endpoints. Six paid operations: " +
       "(1) GET /api/fuse/stats ($0.01) returns real-time Fuse Blockscout " +
       "network statistics — block number, transaction volumes, gas price tiers, " +
