@@ -9,7 +9,7 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc --noEmit",
-    "test": "tsx src/patches/extensions-forward.test.ts"
+    "test": "tsx src/patches/extensions-forward.test.ts && tsx src/patches/keychain-error-translation.test.ts"
   },
   "dependencies": {
     "@buildonspark/lightning-mpp-sdk": "^0.1.4",

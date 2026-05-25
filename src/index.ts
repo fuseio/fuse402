@@ -1,12 +1,17 @@
 // Patches run before anything else imports @x402/core/server so the
 // prototype wrap and fetch wrap are in place by the time the first
 // request lands. cdp-debug-logger goes first; extensions-forward wraps
-// AROUND it (cdp logger sees the post-mutation body).
+// AROUND it (cdp logger sees the post-mutation body). keychain-error
+// translation wraps both — it only inspects RESPONSES from Tempo RPC,
+// so wrap-order is irrelevant for correctness but applying it last
+// keeps the diff trivially auditable.
 import { applyCdpDebugLogger } from "./patches/cdp-debug-logger.js";
 import { applyExtensionsForwardPatch } from "./patches/extensions-forward.js";
+import { applyKeychainErrorTranslationPatch } from "./patches/keychain-error-translation.js";
 
 applyCdpDebugLogger();
 applyExtensionsForwardPatch();
+applyKeychainErrorTranslationPatch();
 
 import { createFacilitatorConfig } from "@coinbase/x402";
 import {

@@ -29,6 +29,10 @@ import { Challenge } from "mppx";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 
 import { composeEntriesForUsd, getMpp } from "../mpp.js";
+import {
+  keychainErrorAls,
+  type KeychainErrorStore,
+} from "../patches/keychain-error-translation.js";
 
 // Per-request state. We tag req/res with these via intersection rather than
 // module augmentation so the types stay local to this file (no global
@@ -133,14 +137,59 @@ async function runMppCompose(
 ): Promise<void> {
   const entries = composeEntriesForUsd(usd, description);
   const webReq = reqToWebRequest(req);
-  const result = await getMpp().compose(
-    ["tempo/charge", entries.tempo],
-    ["stripe/charge", entries.stripe],
-    ["lightning/charge", entries.lightning],
-  )(webReq);
+
+  // Run compose() inside an AsyncLocalStorage frame so the
+  // keychain-error-translation patch can flag Tempo keychain failures
+  // it observes on the RPC round-trip. Absent that flag, the response
+  // below is emitted unchanged.
+  const keychainStore: KeychainErrorStore = { detected: false };
+  const result = await keychainErrorAls.run(keychainStore, () =>
+    getMpp().compose(
+      ["tempo/charge", entries.tempo],
+      ["stripe/charge", entries.stripe],
+      ["lightning/charge", entries.lightning],
+    )(webReq),
+  );
 
   if (result.status === 402) {
     const challenge = result.challenge;
+
+    // If verification failed specifically because Tempo's Account Keychain
+    // precompile doesn't recognise the access key that signed the client's
+    // TempoTransaction, replace the generic verification-failed problem
+    // with an actionable vendor problem type. The challenge headers
+    // (WWW-Authenticate etc.) are still emitted so a recovered client can
+    // re-attempt with a different method. See the block comment in
+    // src/patches/keychain-error-translation.ts for the full rationale.
+    if (keychainStore.detected) {
+      res.status(402);
+      for (const [k, v] of challenge.headers) res.setHeader(k, v);
+      res.setHeader("Content-Type", "application/problem+json");
+      res.send(
+        JSON.stringify({
+          type: "https://ai.fuse.io/problems/tempo-access-key-not-authorized",
+          title: "Tempo access key not authorised in Account Keychain",
+          status: 402,
+          detail:
+            "The Tempo node rejected the client's signed TempoTransaction " +
+            "because the access key that signed it is not authorised in " +
+            "the Account Keychain precompile for the sender's wallet. The " +
+            "client's wallet service may report the key as ready, but the " +
+            "on-chain `wallet_authorizeAccessKey` step (or an inline " +
+            "key_authorization signed by the root key) has not been " +
+            "completed. Recovery: re-run `tempo wallet logout && tempo " +
+            "wallet login` and complete every passkey prompt so the root " +
+            "key signs an authorisation for the access key; alternatively " +
+            "pay via an MPP method that does not require a Keychain " +
+            "lookup (e.g. Stripe), or via x402/USDC on Base. See " +
+            "https://docs.tempo.xyz/guide/use-accounts/authorize-access-keys " +
+            "for the authorisation flow.",
+          cause: keychainStore.details,
+        }),
+      );
+      return;
+    }
+
     res.status(challenge.status);
     for (const [k, v] of challenge.headers) res.setHeader(k, v);
     res.send(await challenge.text());
