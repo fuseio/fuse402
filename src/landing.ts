@@ -84,6 +84,7 @@ export function renderLandingHtml(): string {
 <ul>
 <li><a href="/openapi.json">OpenAPI 3.1.0 specification</a> &mdash; includes <code>x-payment-info.offers</code> per operation</li>
 <li><a href="/.well-known/x402">x402 well-known v1</a></li>
+<li><a href="/llms.txt">llms.txt</a> &mdash; concise API summary for LLM consumers</li>
 </ul>
 <p class="footer">
 No accounts, no API keys &mdash; agents pay per request.<br>

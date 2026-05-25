@@ -33,7 +33,7 @@ import {
   PORT,
   SFUSE_ICON_URL,
 } from "./config.js";
-import { OPENAPI_SPEC, WELLKNOWN_X402 } from "./discovery.js";
+import { LLMS_TXT, OPENAPI_SPEC, WELLKNOWN_X402 } from "./discovery.js";
 import { renderLandingHtml } from "./landing.js";
 import {
   dualPay,
@@ -142,6 +142,9 @@ app.get("/openapi.json", (_req: Request, res: Response) => {
 });
 app.get("/.well-known/x402", (_req: Request, res: Response) => {
   res.json(WELLKNOWN_X402);
+});
+app.get("/llms.txt", (_req: Request, res: Response) => {
+  res.type("text/plain").send(LLMS_TXT);
 });
 
 // Favicon — crawlers and x402scan probe /favicon.ico for the origin's

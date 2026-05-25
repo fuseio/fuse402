@@ -298,6 +298,33 @@ export const OPENAPI_SPEC = {
   },
 } as const;
 
+// llms.txt — concise Markdown summary of this API for LLM consumers.
+// Follows the llmstxt.org convention: H1 title, blockquote summary, then
+// H2 sections with bulleted links and inline descriptions.
+export const LLMS_TXT = `# ${LANDING_TITLE}
+
+> ${LANDING_DESCRIPTION}
+
+Six paid HTTP endpoints returning JSON. No accounts or API keys — clients pay per request via x402 (USDC on Base mainnet, eip155:8453) or MPP (Tempo USDC, Stripe Visa/Mastercard, Bitcoin Lightning). Merchant address: ${PAY_TO}.
+
+## Network
+
+- [Real-time Fuse network statistics](${HOST_URL}/api/fuse/stats): $0.01 — block number, daily/total transactions, gas price tiers (slow/average/fast), FUSE token price, market cap, network utilization.
+- [Fuse wallet analysis](${HOST_URL}/api/fuse/wallet/{address}): $0.05 — FUSE balance (wei + formatted + USD), transaction count, token transfer count, last activity timestamp, 30-day inflow/outflow/unique counterparties. Path param: \`address\` (0x-prefixed EVM address).
+- [Fuse DeFi yield opportunities](${HOST_URL}/api/fuse/defi/opportunities): $0.10 — chain TVL from DefiLlama, DeFi protocol list grouped by category, Solid.xyz APY windows for SoUSD and SoFUSE.
+
+## Loyalty Tokens
+
+- [Deploy LoyaltyToken ERC-20](${HOST_URL}/api/fuse/loyalty/create): $5.00 — POST \`{tokenName, tokenSymbol, owner, businessName?, initialSupply?}\`; deploys mintable/burnable/ownable ERC-20 on Fuse mainnet; returns \`tokenAddress\` + \`transactionHash\`.
+- [Mint loyalty tokens](${HOST_URL}/api/fuse/loyalty/mint): $0.50 — POST \`{tokenAddress, recipient, amount, reason?}\`; mints to any address while the deployer holds the minter role.
+- [Read ERC-20 balance](${HOST_URL}/api/fuse/loyalty/balance/{token}/{address}): $0.02 — returns symbol, decimals, balance (formatted + wei) for any Fuse ERC-20. Path params: \`token\`, \`address\` (both 0x-prefixed EVM addresses).
+
+## Discovery
+
+- [OpenAPI 3.1.0 specification](${HOST_URL}/openapi.json): Machine-readable contract with \`x-payment-info.offers\` per operation.
+- [x402 well-known](${HOST_URL}/.well-known/x402): x402scan resource list (v1).
+`;
+
 // Per the x402scan well-known v1 spec, resources are "METHOD /path" strings,
 // NOT full URLs or object entries. Dynamic routes keep Express :param syntax
 // — x402scan normalizes these for catalog grouping.
