@@ -24,6 +24,7 @@ import {
   PAY_TO,
   SFUSE_ICON_URL,
   TEMPO_CURRENCY,
+  TEMPO_PAY_TO,
 } from "./config.js";
 import { dollarsToSats } from "./mpp.js";
 
@@ -50,6 +51,7 @@ function paymentInfo(amountUsd: string, description: string) {
         intent: "charge",
         amount: amountUsd,
         currency: TEMPO_CURRENCY,
+        recipient: TEMPO_PAY_TO,
         description,
       },
       {
