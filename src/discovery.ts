@@ -328,16 +328,135 @@ Six paid HTTP endpoints returning JSON. No accounts or API keys — clients pay 
 `;
 
 // Per the x402scan well-known v1 spec, resources are "METHOD /path" strings,
-// NOT full URLs or object entries. Dynamic routes keep Express :param syntax
-// — x402scan normalizes these for catalog grouping.
 export const WELLKNOWN_X402 = {
   version: 1,
   resources: [
-    "GET /api/fuse/stats",
-    "GET /api/fuse/wallet/:address",
-    "GET /api/fuse/defi/opportunities",
-    "POST /api/fuse/loyalty/create",
-    "POST /api/fuse/loyalty/mint",
-    "GET /api/fuse/loyalty/balance/:token/:address",
+    {
+      method: "GET",
+      path: "/api/fuse/stats",
+      usd: "0.01",
+      description:
+        "Real-time Fuse network statistics — block number, daily/total transactions, gas price tiers, FUSE token price.",
+      responseExample: {
+        blockNumber: 41935489,
+        totalTransactions: 200195759,
+        dailyTransactions: 21479,
+        networkUtilization: 0.7188013,
+        averageBlockTime: 5,
+        gasPrice: { slow: 17.89, average: 18.62, fast: 19.12 },
+        fusePrice: 0.00317466,
+        marketCap: 998052.68,
+      },
+      keywords: ["stats", "network", "block", "transactions", "gas", "fuse", "price"],
+      "x-payment-info": paymentInfo("0.01", "Real-time Fuse network statistics"),
+    },
+    {
+      method: "GET",
+      path: "/api/fuse/wallet/:address",
+      usd: "0.05",
+      description:
+        "Complete Fuse wallet analysis — balances, transaction counts, token transfers, last activity, and 30-day activity.",
+      pathParams: {
+        address: {
+          type: "string",
+          description: "EVM wallet address (0x-prefixed, 42 chars)",
+          pattern: EVM_ADDRESS_PATTERN,
+        },
+      },
+      keywords: ["wallet", "balance", "address", "transactions", "activity", "token-transfers", "fuse"],
+      responseExample: {
+        address: "0x198Ac74EFAeECE818Fb06C89bfded7C33d97C6F9",
+        balance: { fuse: "1234.56", fuseWei: "1234560000000000000000", usd: 3.92 },
+        transactionCount: 482,
+        tokenTransferCount: 47,
+        lastActivityAt: "2026-05-13T18:42:11.000Z",
+      },
+      "x-payment-info": paymentInfo("0.05", "Fuse wallet analysis"),
+    },
+    {
+      method: "GET",
+      path: "/api/fuse/defi/opportunities",
+      usd: "0.10",
+      description:
+        "Lists Fuse-chain DeFi protocols (TVL from DefiLlama) and Solid.xyz APY windows.",
+      responseExample: {
+        chain: { name: "Fuse", tvlUsd: 283933.01, nativeToken: "FUSE" },
+        protocols: { Yield: [], Dexs: [] },
+      },
+      keywords: ["defi", "yield", "apy", "tvl", "defillama", "solid"],
+      "x-payment-info": paymentInfo("0.10", "Fuse DeFi yield opportunities"),
+    },
+    {
+      method: "POST",
+      path: "/api/fuse/loyalty/create",
+      usd: "5.00",
+      description:
+        "Deploys a mintable/burnable/ownable LoyaltyToken ERC-20 on Fuse; caller-supplied owner becomes on-chain owner.",
+      requestBodySchema: {
+        type: "object",
+        required: ["tokenName", "tokenSymbol", "owner"],
+        properties: {
+          tokenName: { type: "string", maxLength: 64 },
+          tokenSymbol: { type: "string", maxLength: 12 },
+          owner: { type: "string", pattern: EVM_ADDRESS_PATTERN },
+          businessName: { type: "string", maxLength: 120 },
+          initialSupply: { type: "integer", minimum: 0 },
+        },
+      },
+      requestExample: {
+        tokenName: "AcmeRewards",
+        tokenSymbol: "ACME",
+        owner: "0x198Ac74EFAeECE818Fb06C89bfded7C33d97C6F9",
+        businessName: "Acme Inc.",
+        initialSupply: 1000000,
+      },
+      keywords: ["loyalty", "token", "erc20", "deploy", "mintable", "burnable", "ownable"],
+      "x-payment-info": paymentInfo("5.00", "Deploy LoyaltyToken ERC-20 on Fuse"),
+    },
+    {
+      method: "POST",
+      path: "/api/fuse/loyalty/mint",
+      usd: "0.50",
+      description:
+        "Mints additional units of an already-deployed LoyaltyToken; requires deployer to still hold the minter role.",
+      requestBodySchema: {
+        type: "object",
+        required: ["tokenAddress", "recipient", "amount"],
+        properties: {
+          tokenAddress: { type: "string", pattern: EVM_ADDRESS_PATTERN },
+          recipient: { type: "string", pattern: EVM_ADDRESS_PATTERN },
+          amount: { type: "number", minimum: 0 },
+          reason: { type: "string", maxLength: 120 },
+        },
+      },
+      requestExample: {
+        tokenAddress: "0xabc1234567890abcdef1234567890abcdef12345",
+        recipient: "0xdef1234567890abcdef1234567890abcdef12345",
+        amount: 100,
+        reason: "customer_referral_bonus",
+      },
+      keywords: ["loyalty", "mint", "erc20", "minting", "tokens"],
+      "x-payment-info": paymentInfo("0.50", "Mint loyalty tokens"),
+    },
+    {
+      method: "GET",
+      path: "/api/fuse/loyalty/balance/:token/:address",
+      usd: "0.02",
+      description:
+        "Reads ERC-20 balance on Fuse for a token/address pair.",
+      pathParams: {
+        token: { type: "string", pattern: EVM_ADDRESS_PATTERN },
+        address: { type: "string", pattern: EVM_ADDRESS_PATTERN },
+      },
+      responseExample: {
+        token: "0xabc1234567890abcdef1234567890abcdef12345",
+        address: "0xdef1234567890abcdef1234567890abcdef12345",
+        symbol: "ACME",
+        decimals: 18,
+        balance: "100.000000000000000000",
+      },
+      keywords: ["balance", "erc20", "token", "read", "wallet", "fuse"],
+      "x-payment-info": paymentInfo("0.02", "Read ERC-20 balance on Fuse"),
+    },
   ],
 } as const;
